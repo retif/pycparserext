@@ -1,3 +1,4 @@
+
 import pycparser.c_ast as c_ast
 import pycparser.c_parser
 
@@ -186,8 +187,6 @@ class RangeExpression(c_ast.Node):
 # These are the same as pycparser's, but it does *not* declare __slots__--
 # so we can poke in attributes at our leisure.
 class TypeDeclExt(c_ast.TypeDecl):
-    __slots__ = ('asm', 'attributes', 'init')
-
     @staticmethod
     def from_pycparser(td):
         assert isinstance(td, c_ast.TypeDecl)
@@ -202,8 +201,6 @@ class TypeDeclExt(c_ast.TypeDecl):
 
 
 class ArrayDeclExt(c_ast.ArrayDecl):
-    __slots__ = ('asm', 'attributes', 'init')
-
     @staticmethod
     def from_pycparser(ad):
         assert isinstance(ad, c_ast.ArrayDecl)
@@ -610,7 +607,6 @@ class GnuCParser(_AsmAndAttributesMixin, CParserBase):
                              | __VOLATILE__
         """
         p[0] = p[1]
-
 # }}}
 
 
