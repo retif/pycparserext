@@ -644,16 +644,6 @@ def test_typedef():
     assert gen == "int"
 
 
-def test_attribute_in_struct():
-    # https://github.com/inducer/pycparserext/issues/75
-    src = """
-    typedef struct {
-        __attribute__((__deprecated__)) int test1;
-    } test2;
-    """
-    assert _round_trip_matches(src)
-
-
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:

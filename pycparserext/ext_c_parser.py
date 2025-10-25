@@ -1,4 +1,3 @@
-
 import pycparser.c_ast as c_ast
 import pycparser.c_parser
 
@@ -59,6 +58,9 @@ class AttributeSpecifier(c_ast.Node):
     def __init__(self, exprlist):
         self.exprlist = exprlist
 
+    def __eq__(self, other):
+        return self.exprlist == other.exprlist
+
     def children(self):
         return [("exprlist", self.exprlist)]
 
@@ -69,6 +71,32 @@ class AttributeSpecifier(c_ast.Node):
         yield
 
     attr_names = ()
+
+
+class DeclExt(c_ast.Decl):
+    @staticmethod
+    def from_pycparser(decl):
+        assert isinstance(decl, c_ast.Decl)
+        new_decl = DeclExt(
+            name=decl.name,
+            quals=decl.quals,
+            align=decl.align,
+            storage=decl.storage,
+            funcspec=decl.funcspec,
+            type=decl.type,
+            init=decl.init,
+            bitsize=decl.bitsize,
+            coord=decl.coord,
+        )
+        if hasattr(decl, "attributes"):
+            new_decl.attributes = decl.attributes
+        return new_decl
+
+    def children(self):
+        nodelist = super().children()
+        if hasattr(self, "attributes"):
+            nodelist = nodelist + (("attributes", self.attributes),)
+        return nodelist
 
 
 class Asm(c_ast.Node):
@@ -429,24 +457,31 @@ class _AsmAndAttributesMixin(_AsmMixin, _AttributesMixin):
             decl = p[3]
 
         if asm_label or attr_decl.exprs:
-            if isinstance(decl, (c_ast.ArrayDecl, c_ast.FuncDecl)):
-                decl_ext = to_decl_ext(decl.type)
+            innermost_decl = decl
+            while not isinstance(innermost_decl, c_ast.TypeDecl):
+                try:
+                    innermost_decl = innermost_decl.type
+                except AttributeError as err:
+                    raise NotImplementedError(
+                        "cannot attach asm or attributes to "
+                        "nodes of type '%s'"
+                        % type(innermost_decl)
+                    ) from err
 
-            elif isinstance(decl, c_ast.TypeDecl):
-                decl_ext = to_decl_ext(decl)
-
-            else:
-                raise NotImplementedError(
-                    "cannot attach asm or attributes to nodes of type '%s'"
-                    % type(p[1]))
+            decl_ext = to_decl_ext(innermost_decl)
 
             if asm_label:
                 decl_ext.asm = asm_label
-
             if attr_decl.exprs:
                 decl_ext.attributes = attr_decl
 
-            p[1] = decl_ext
+            if innermost_decl is decl:
+                decl = decl_ext
+            else:
+                parent = decl
+                while parent.type is not innermost_decl:
+                    parent = parent.type
+                parent.type = decl_ext
 
         p[0] = self._type_modify_decl(decl, p[1])
 
@@ -556,6 +591,35 @@ class GnuCParser(_AsmAndAttributesMixin, CParserBase):
             p[1],
             p[2] if len(p) == 3 else p[3],
             self._token_coord(p, 1))
+
+
+
+    def p_specifier_qualifier_list_fs(self, p):
+        """ specifier_qualifier_list : function_specifier specifier_qualifier_list
+        """
+        self._p_specifier_qualifier_list_left_recursion(p)
+
+    def _p_specifier_qualifier_list_left_recursion(self, p):
+        # The PLY documentation says that left-recursive rules are supported,
+        # but it keeps complaining about reduce/reduce conflicts.
+        #
+        # See `_p_specifier_qualifier_list_right_recursion` for a non-complaining
+        # version.
+        spec = p[1]
+        spec_dict = p[2]
+
+        if isinstance(spec, AttributeSpecifier):
+            spec_dict['function'].append(spec)
+        elif isinstance(spec, str):
+            spec_dict['qual'].append(spec)
+        elif isinstance(spec, c_ast.Node):
+            if 'type' not in spec_dict:
+                spec_dict['type'] = []
+            spec_dict['type'].append(spec)
+        else:
+            raise TypeError(f"Unknown specifier {spec!r} of type {type(spec)}")
+
+        p[0] = spec_dict
 
     def p_statement(self, p):
         """ statement   : labeled_statement

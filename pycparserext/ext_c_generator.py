@@ -1,7 +1,7 @@
 import pycparser.c_ast as c_ast
 from pycparser.c_generator import CGenerator as CGeneratorBaseBuggy
 
-from pycparserext.ext_c_parser import FuncDeclExt, TypeDeclExt
+from pycparserext.ext_c_parser import FuncDeclExt, TypeDeclExt, DeclExt
 
 
 class CGeneratorBase(CGeneratorBaseBuggy):
@@ -127,6 +127,12 @@ class AsmAndAttributesMixin:
         else:
             return self.visit(n)
 
+
+    def visit_AttributeSpecifier(self, n):
+        return "__attribute__((" + self.visit(n.exprlist) + "))"
+
+
+class GnuCGenerator(AsmAndAttributesMixin, CGeneratorBase):
     def _generate_decl(self, n):
         """ Generation from a Decl node.
         """
@@ -145,11 +151,6 @@ class AsmAndAttributesMixin:
         s += self._generate_type(n.type)
         return s
 
-    def visit_AttributeSpecifier(self, n):
-        return " __attribute__((" + self.visit(n.exprlist) + "))"
-
-
-class GnuCGenerator(AsmAndAttributesMixin, CGeneratorBase):
     def visit_TypeOfDeclaration(self, n):
         return "%s(%s)" % (n.typeof_keyword, self.visit(n.declaration))
 
