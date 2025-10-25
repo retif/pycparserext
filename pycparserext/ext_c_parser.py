@@ -432,19 +432,31 @@ class _AsmAndAttributesMixin(_AsmMixin, _AttributesMixin):
             decl = p[3]
 
         if asm_label or attr_decl.exprs:
-            # Attach attributes to the innermost TypeDecl in the chain
-            decl_ext = decl
-            while not isinstance(decl_ext, c_ast.TypeDecl):
-                decl_ext = decl_ext.type
-            decl_ext = to_decl_ext(decl_ext)
+            innermost_decl = decl
+            while not isinstance(innermost_decl, c_ast.TypeDecl):
+                try:
+                    innermost_decl = innermost_decl.type
+                except AttributeError as err:
+                    raise NotImplementedError(
+                        "cannot attach asm or attributes to "
+                        "nodes of type '%s'"
+                        % type(innermost_decl)
+                    ) from err
+
+            decl_ext = to_decl_ext(innermost_decl)
 
             if asm_label:
                 decl_ext.asm = asm_label
-
             if attr_decl.exprs:
                 decl_ext.attributes = attr_decl
 
-            p[1] = decl_ext
+            if innermost_decl is decl:
+                decl = decl_ext
+            else:
+                parent = decl
+                while parent.type is not innermost_decl:
+                    parent = parent.type
+                parent.type = decl_ext
 
         p[0] = self._type_modify_decl(decl, p[1])
 

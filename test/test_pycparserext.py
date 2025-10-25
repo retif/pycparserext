@@ -596,6 +596,11 @@ def test_alignof():
     assert _round_trip_matches(src)
 
 
+def test_alignof_in_attribute():
+    src = "long long z __attribute__((aligned(__alignof__(long long))));"
+    assert _round_trip_matches(src)
+
+
 def test_typeof_reproduction():
     src = """
     int func(int a, int b) {
@@ -662,6 +667,12 @@ def test_typedef():
     gen = GnuCGenerator().visit(first_ast.type)
 
     assert gen == "int"
+
+
+def test_pointer_to_function_with_attribute():
+    # https://github.com/inducer/pycparserext/issues/66
+    src = "void (*f)(void) __attribute__((unused));"
+    assert _round_trip_matches(src)
 
 
 if __name__ == "__main__":
